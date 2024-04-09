@@ -1,7 +1,7 @@
 import { cx } from '@emotion/css';
 import { debounce } from 'lodash';
 import memoizeOne from 'memoize-one';
-import React, { PureComponent, MouseEvent } from 'react';
+import React, { PureComponent, MouseEvent, CSSProperties } from 'react';
 
 import {
   Field,
@@ -63,6 +63,7 @@ interface Props extends Themeable2 {
   pinned?: boolean;
   containerRendered?: boolean;
   handleTextSelection?: (e: MouseEvent<HTMLTableRowElement>, row: LogRowModel) => boolean;
+  style: CSSProperties;
 }
 
 interface State {
@@ -217,6 +218,7 @@ class UnThemedLogRow extends PureComponent<Props, State> {
       app,
       styles,
       getRowContextQuery,
+      style
     } = this.props;
     const { showDetails, showingContext, permalinked } = this.state;
     const levelStyles = getLogLevelStyles(theme, row.logLevel);
@@ -241,6 +243,7 @@ class UnThemedLogRow extends PureComponent<Props, State> {
           onMouseEnter={this.onMouseEnter}
           onMouseLeave={this.onMouseLeave}
           onMouseMove={this.onMouseMove}
+          style={style}
           /**
            * For better accessibility support, we listen to the onFocus event here (to display the LogRowMenuCell), and
            * to onBlur event in the LogRowMenuCell (to hide it). This way, the LogRowMenuCell is displayed when the user navigates
