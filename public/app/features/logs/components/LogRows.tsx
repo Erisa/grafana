@@ -78,6 +78,9 @@ interface State {
   selection: string;
   selectedRow: LogRowModel | null;
   popoverMenuCoordinates: { x: number; y: number };
+  orderedRows: LogRowModel[];
+  showDuplicates: boolean;
+  keyMaker: UniqueKeyMaker;
 }
 
 class UnThemedLogRows extends PureComponent<Props, State> {
@@ -93,6 +96,9 @@ class UnThemedLogRows extends PureComponent<Props, State> {
     selection: '',
     selectedRow: null,
     popoverMenuCoordinates: { x: 0, y: 0 },
+    orderedRows: [],
+    showDuplicates: false,
+    keyMaker: new UniqueKeyMaker(),
   };
 
   /**
@@ -158,6 +164,22 @@ class UnThemedLogRows extends PureComponent<Props, State> {
       selectedRow: null,
     });
   };
+  
+  componentDidUpdate(): void {
+    const { deduplicatedRows, logRows, dedupStrategy, logsSortOrder } = this.props;
+    const dedupedRows = deduplicatedRows ? deduplicatedRows : logRows;
+    const dedupCount = dedupedRows
+      ? dedupedRows.reduce((sum, row) => (row.duplicates ? sum + row.duplicates : sum), 0)
+      : 0;
+    const showDuplicates = dedupStrategy !== LogsDedupStrategy.none && dedupCount > 0;
+    const processedRows = dedupedRows ? dedupedRows : [];
+    const orderedRows = logsSortOrder ? this.sortLogs(processedRows, logsSortOrder) : processedRows;
+    
+    this.setState({
+      orderedRows,
+      showDuplicates
+    })
+  }
 
   componentWillUnmount() {
     document.removeEventListener('click', this.handleDeselection);
@@ -176,10 +198,10 @@ class UnThemedLogRows extends PureComponent<Props, State> {
     sortLogRows(logRows, logsSortOrder)
   );
 
-  Row = ({ getRows, rows, showDuplicates, keyMaker, styles }: { getRows(): LogRowModel[], rows: LogRowModel[], showDuplicates: boolean, keyMaker: UniqueKeyMaker, styles: ReturnType<typeof getLogRowStyles> }, { index, style }: { index: number, style: CSSProperties }) => {
+  Row = ({ getRows, rows, showDuplicates, styles }: { getRows(): LogRowModel[], rows: LogRowModel[], showDuplicates: boolean, styles: ReturnType<typeof getLogRowStyles> }, { index, style }: { index: number, style: CSSProperties }) => {
     return <LogRow
       style={style}
-      key={keyMaker.getKey(rows[index].uid)}
+      key={this.state.keyMaker.getKey(rows[index].uid)}
       getRows={getRows}
       row={rows[index]}
       showDuplicates={showDuplicates}
@@ -215,21 +237,12 @@ class UnThemedLogRows extends PureComponent<Props, State> {
 
   render() {
     const { deduplicatedRows, logRows, dedupStrategy, theme, logsSortOrder, previewLimit, ...rest } = this.props;
+    const { orderedRows, showDuplicates } = this.state;
     const styles = getLogRowStyles(theme);
-    const dedupedRows = deduplicatedRows ? deduplicatedRows : logRows;
-    const dedupCount = dedupedRows
-      ? dedupedRows.reduce((sum, row) => (row.duplicates ? sum + row.duplicates : sum), 0)
-      : 0;
-    const showDuplicates = dedupStrategy !== LogsDedupStrategy.none && dedupCount > 0;
-    // Staged rendering
-    const processedRows = dedupedRows ? dedupedRows : [];
-    const orderedRows = logsSortOrder ? this.sortLogs(processedRows, logsSortOrder) : processedRows;
 
     // React profiler becomes unusable if we pass all rows to all rows and their labels, using getter instead
     const getRows = this.makeGetRows(orderedRows);
     const height = window.innerHeight * 0.75;
-
-    const keyMaker = new UniqueKeyMaker();
 
     return (
       <div className={styles.logRows} ref={this.logRowsRef}>
@@ -244,18 +257,16 @@ class UnThemedLogRows extends PureComponent<Props, State> {
           />
         )}
         <table className={cx(styles.logsRowsTable, this.props.overflowingContent ? '' : styles.logsRowsTableContain)}>
-          <tbody>
-            <VariableSizeList
-              height={height}
-              itemCount={orderedRows?.length || 0}
-              itemSize={this.estimateRowHeight.bind(this, orderedRows)}
-              itemKey={(index: number) => keyMaker.getKey(orderedRows[index].uid)}
-              width={'100%'}
-              layout="vertical"
-            >
-              {this.Row.bind(this, { getRows, showDuplicates, rows: orderedRows, keyMaker, styles })}  
-            </VariableSizeList>
-          </tbody>
+          <VariableSizeList
+            height={height}
+            itemCount={orderedRows?.length || 0}
+            itemSize={this.estimateRowHeight.bind(this, orderedRows)}
+            itemKey={(index: number) => this.state.keyMaker.getKey(orderedRows[index].uid)}
+            width={'100%'}
+            layout="vertical"
+          >
+            {this.Row.bind(this, { getRows, showDuplicates, rows: orderedRows, styles })}  
+          </VariableSizeList>
         </table>
       </div>
     );
